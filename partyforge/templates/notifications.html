@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Notifications · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">Organizer inbox</div>
+    <h1>Notifications</h1>
+    <p class="muted">RSVP, poll, and potluck activity from every event.</p>
+  </div>
+  {% if unread_notifications %}
+    <form method="post" action="{{ url_for('admin.mark_notifications_read') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button type="submit" class="ghost">Mark all read</button>
+    </form>
+  {% endif %}
+</div>
+<section class="card section-card notification-list">
+  {% for item in notifications %}
+    <article class="notification-item{% if item.id not in read_ids %} unread{% endif %}">
+      <div class="notification-icon">{{ {'rsvp':'💌','potluck':'🥘','poll':'🗳️'}.get(item.kind, '🔔') }}</div>
+      <div>
+        <div class="notification-meta"><span class="status">{{ item.kind }}</span><time>{{ item.created_at.strftime('%b %d · %I:%M %p') }}</time></div>
+        <strong>{{ item.title }}</strong>
+        <p>{{ item.message }}</p>
+        <a href="{{ url_for('admin.manage_event', event_id=item.event_id) }}">Open {{ item.event.title }} →</a>
+      </div>
+    </article>
+  {% else %}
+    <div class="empty"><div class="empty-icon">🔔</div><h2>No notifications yet</h2><p class="muted">New RSVPs, poll votes, and potluck updates will appear here.</p></div>
+  {% endfor %}
+</section>
+<section class="card section-card notification-card" data-push-panel data-push-url="{{ url_for('admin.subscribe_push') }}" data-key-url="{{ url_for('admin.push_key') }}">
+  <div class="eyebrow">Organizer push alerts</div>
+  <h2>Notify this browser</h2>
+  <p class="muted">These are separate from guest alerts and apply to your host account.</p>
+  <div class="notification-categories">
+    {% for value, label in [('rsvp','RSVP changes'),('potluck','Potluck activity'),('polls','Poll responses'),('event','Event activity'),('reminders','Reminders'),('announcements','Announcements')] %}
+      <label class="check"><input type="checkbox" value="{{ value }}" checked>{{ label }}</label>
+    {% endfor %}
+  </div>
+  <div class="button-row"><button type="button" data-enable-push>Enable host notifications</button><button type="button" class="ghost" data-disable-push hidden>Turn off on this device</button></div>
+  <p class="hint" data-push-message>On iPhone or iPad, add PartyForge to your Home Screen first.</p>
+</section>
+{% endblock %}

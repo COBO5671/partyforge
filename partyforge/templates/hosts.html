@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Hosts · {{ event.title }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><div class="eyebrow">Event team</div><h1>Hosts &amp; co-hosts</h1><p class="muted">Co-hosts can manage the event but cannot delete it or change this team.</p></div>
+  <a class="button ghost" href="{{ url_for('admin.manage_event', event_id=event.id) }}">Back to event</a>
+</div>
+<div class="two-column">
+  <section class="card section-card">
+    <h2>Current hosts</h2>
+    <div class="guest-list">
+      {% for link in host_links %}
+        <div class="guest-row">
+          <div><strong>{{ link.user.name }}</strong><span class="status">{{ link.role }}</span><small>@{{ link.user.username }}</small></div>
+          {% if link.role == 'cohost' %}
+            <form method="post" action="{{ url_for('admin.remove_host', event_id=event.id, user_id=link.user_id) }}" onsubmit="return confirm('Remove this co-host?')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="danger-link">Remove</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="card section-card">
+    <h2>Add a co-host</h2>
+    <form method="post" class="stack">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label>Name<input name="name" maxlength="120" required placeholder="Josh"></label>
+      <label>Username<input name="username" maxlength="120" required placeholder="josh"></label>
+      <label>Email, optional<input type="email" name="email" maxlength="255"></label>
+      <label>Initial password<input type="password" name="password" minlength="10" placeholder="Only needed for a new account"></label>
+      <p class="hint">If that username already exists, PartyForge adds the existing account and ignores the password box.</p>
+      <button type="submit">Add co-host</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

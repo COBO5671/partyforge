@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+transfer-data/
+*.tgz
+*.before-*
+__pycache__/
+*.py[cod]
+*.db
+data/
+.pytest_cache/
+.DS_Store
+.venv/
+.test-tmp/
+dist/

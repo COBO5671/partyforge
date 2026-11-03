@@ -1,0 +1,302 @@
+{% from "_description.html" import render_description %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="same-origin">
+  <title>{{ event.title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="manifest" href="{{ url_for('manifest') }}">
+  <script defer src="{{ url_for('static', filename='theme-parser.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+  {% if event.theme_css %}<style>{{ event.theme_css|safe }}</style>{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='invite-flow.css') }}">
+</head>
+<body
+  class="event-page"
+  data-event-id="{{ event.id }}"
+  data-celebrate="{{ 'yes' if celebrate else 'no' }}"
+  data-event-start="{{ event_start_ms }}"
+  data-open-event-url="{{ url_for('public.open_event', token=event.public_token) }}"
+  data-csrf="{{ csrf_token() }}"
+  {% if guest %}data-personal-invite-url="{{ url_for('public.invite', token=guest.token) }}"{% endif %}
+>
+  <nav class="invite-action-bar" aria-label="Invitation shortcuts">
+    <a class="quick-date" href="#event-essentials">{{ event.start_at.strftime('%a, %b %d') }} <span>· {{ event.start_at.strftime('%I:%M %p').lstrip('0') }} {{ event_timezone_label }}</span></a>
+    <div class="quick-actions">
+      {% for block in event.blocks if block.kind == 'potluck' %}{% if loop.first %}<a class="quick-secondary" href="#block-{{ block.id }}">Potluck</a>{% endif %}{% endfor %}
+      {% if event.description %}<a class="quick-secondary" href="#event-details">Details &amp; videos</a>{% endif %}
+      {% if guest or (open_link and event.allow_open_rsvp) %}<a class="quick-primary" href="#rsvp">{{ 'Your RSVP' if guest and guest.status != 'pending' else 'RSVP now' }}</a>{% endif %}
+    </div>
+  </nav>
+  <div class="event-scene">
+    {{ event.theme_html_top|safe }}
+    <main class="invite">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <header class="invite-hero">
+        {% if event.banner_filename %}
+          <img class="invite-banner" src="{{ url_for('uploaded_file', filename=event.banner_filename) }}" alt="">
+        {% endif %}
+        <div class="invite-hero-copy">
+          <div class="event-kicker">{{ event.start_at.strftime('%A · %B %d · %I:%M %p') }}</div>
+          <h1>{{ event.title }}</h1>
+          {% if event.subtitle %}<p class="event-subtitle">{{ event.subtitle }}</p>{% endif %}
+        </div>
+      </header>
+
+      <section id="event-essentials" class="event-card moment-card" aria-label="Event date, time, and countdown">
+        <div class="calendar-tile" aria-label="{{ event.start_at.strftime('%A, %B %d') }}">
+          <span>{{ event.start_at.strftime('%b') }}</span>
+          <strong>{{ event.start_at.day }}</strong>
+          <em>{{ event.start_at.strftime('%A') }}</em>
+        </div>
+        <div class="digital-time">
+          <span class="time-label">Party starts at</span>
+          <div><strong>{{ event.start_at.strftime('%I:%M').lstrip('0') }}</strong><span>{{ event.start_at.strftime('%p') }}</span></div>
+          <small>{{ event_timezone_label }}{% if event.end_at %} · until {{ event.end_at.strftime('%I:%M %p').lstrip('0') }}{% endif %}</small>
+        </div>
+        {% if event.location %}
+          <div class="essential-location"><span class="time-label">Where</span><strong>{{ event.location }}</strong><a href="https://www.google.com/maps/search/?api=1&amp;query={{ event.location|urlencode }}" target="_blank" rel="noopener noreferrer">Get directions ↗</a></div>
+        {% endif %}
+        <div class="countdown" data-countdown>
+          <span class="countdown-label">Countdown</span>
+          <div class="countdown-units">
+            <span class="countdown-unit"><strong data-countdown-days>--</strong><small>days</small></span>
+            <span class="countdown-unit"><strong data-countdown-hours>--</strong><small>hours</small></span>
+            <span class="countdown-unit"><strong data-countdown-minutes>--</strong><small>mins</small></span>
+          </div>
+          <strong class="countdown-message" data-countdown-message></strong>
+        </div>
+      </section>
+
+      {% if event.highlights %}
+        <section class="event-card highlights-card" aria-labelledby="highlights-title">
+          <div class="event-kicker">Plan your visit</div>
+          <h2 id="highlights-title">Good to know</h2>
+          <dl class="event-highlights">
+            {% for highlight in event.highlights %}<div><dt>{{ highlight.title }}</dt><dd>{{ highlight.body }}</dd></div>{% endfor %}
+          </dl>
+        </section>
+      {% endif %}
+      {% if rsvp_deadline %}
+        <section class="event-card deadline-card{% if deadline_passed %} deadline-passed{% endif %}">
+          <div class="event-kicker">RSVP deadline</div>
+          <h2>{{ rsvp_deadline.strftime('%A, %B %d at %I:%M %p') }}</h2>
+          <p>{{ 'The RSVP deadline has passed.' if deadline_passed else 'Please let the host know by this date.' }}</p>
+        </section>
+      {% endif %}
+
+      {% if guest %}
+        <section class="event-card rsvp-card" id="rsvp">
+          <div class="event-kicker">Your invitation</div>
+          <h2>{{ 'Your RSVP, ' ~ guest.name if guest.status != 'pending' else 'Hey ' ~ guest.name ~ ' — are you in?' }}</h2>
+          {% if guest.status != 'pending' %}<p class="rsvp-saved">✓ Saved: {{ {'yes':'Going', 'maybe':'Maybe', 'no':"Can’t go"}.get(guest.status) }}{% if guest.status == 'yes' %} · {{ guest.party_size }} {{ 'person' if guest.party_size == 1 else 'people' }}{% endif %}. You can update it below.</p>{% else %}<p class="hint">No account or email needed. Choose your response and save.</p>{% endif %}
+          {% if deadline_passed and guest.status == 'pending' %}
+            <div class="participation-notice"><p>The RSVP deadline has passed. Contact the host if you still need to respond.</p></div>
+          {% else %}
+          <form method="post" action="{{ url_for('public.invite', token=guest.token) }}" class="stack">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="rsvp-choices">
+              {% for value, label, emoji in [('yes','Going','🎉'),('maybe','Maybe','🤔'),('no',"Can't go",'💌')] %}
+                <label class="rsvp-choice">
+                  <input type="radio" name="status" value="{{ value }}" {% if guest.status == value %}checked{% endif %} required>
+                  <span><b>{{ emoji }}</b>{{ label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+            <label>How many people?
+              <select name="party_size">
+                {% for size in range(1, guest.party_limit + 1) %}
+                  <option value="{{ size }}" {% if guest.party_size == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>Dietary needs
+              <input name="dietary" value="{{ guest.dietary or '' }}" maxlength="500" placeholder="Allergies, vegetarian, etc.">
+            </label>
+            <label>Note for the host
+              <textarea name="note" rows="3" maxlength="1000" placeholder="Optional">{{ guest.note or '' }}</textarea>
+            </label>
+            <details class="optional-email" {% if subscribed %}open{% endif %}>
+              <summary>Email updates (optional)</summary>
+              <p class="hint">Browser notifications do not need an email address.</p>
+            <label>Email for event updates (optional)
+              <input type="email" name="email" value="{{ guest.email or '' }}" maxlength="255" placeholder="you@example.com">
+            </label>
+            <label class="check notification-opt-in"><input type="checkbox" name="subscribe_all" {% if subscribed %}checked{% endif %}> Email me all updates—event changes, reminders, RSVPs, polls, and potluck activity</label>
+            </details>
+            <button type="submit">Save my RSVP</button>
+          </form>
+          {% endif %}
+          <div class="personal-link">
+            <div>
+              <strong>This is your private event link</strong>
+              <small>Keep this link for your RSVP, polls, and potluck contribution. Anyone with it can edit your response.</small>
+            </div>
+            <button type="button" class="copy-button" data-copy="{{ url_for('public.invite', token=guest.token, _external=True) }}">Copy my link</button>
+          </div>
+          <p class="hint"><a href="#event-updates">Get browser updates — no email needed ↓</a></p>
+        </section>
+      {% elif open_link and event.allow_open_rsvp %}
+        <section class="event-card rsvp-card" id="rsvp">
+          <div class="event-kicker">Open invitation</div>
+          <h2>Add yourself to the list</h2>
+          <p>No account or email needed. After you RSVP, you can turn on browser notifications from your private link.</p>
+          {% if deadline_passed %}
+            <div class="participation-notice"><p>The RSVP deadline has passed. Contact the host if you still need to respond.</p></div>
+          {% else %}
+          <form method="post" action="{{ url_for('public.open_event', token=event.public_token) }}" class="stack">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <label>Your name *<input name="name" required maxlength="160"></label>
+            <details class="optional-email">
+              <summary>Email updates (optional)</summary>
+              <p class="hint">You can get browser notifications after your RSVP without giving an email.</p>
+            <label>Email, optional<input type="email" name="email" maxlength="255"></label>
+            <label class="check notification-opt-in"><input type="checkbox" name="subscribe_all"> Email me all updates—event changes, reminders, RSVPs, polls, and potluck activity</label>
+            </details>
+            <div class="rsvp-choices">
+              {% for value, label, emoji in [('yes','Going','🎉'),('maybe','Maybe','🤔'),('no',"Can't go",'💌')] %}
+                <label class="rsvp-choice"><input type="radio" name="status" value="{{ value }}" {% if value == 'yes' %}checked{% endif %}><span><b>{{ emoji }}</b>{{ label }}</span></label>
+              {% endfor %}
+            </div>
+            <label>Party size<select name="party_size">{% for size in range(1, 11) %}<option>{{ size }}</option>{% endfor %}</select></label>
+            <label>Dietary needs<input name="dietary" maxlength="500"></label>
+            <label>Note for the host<textarea name="note" rows="3" maxlength="1000"></textarea></label>
+            <button type="submit">RSVP</button>
+          </form>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      {% for view in block_views %}
+        {% set block = view.block %}
+        <section class="event-card party-block block-{{ block.kind }}" id="block-{{ block.id }}">
+          <div class="event-kicker">{{ block.kind }}</div>
+          <h2>{{ block.title }}</h2>
+          {% if block.description %}{{ render_description(block.description) }}{% endif %}
+
+          {% if block.kind in ['poll', 'potluck'] and (not guest or guest.status == 'pending') %}
+            <div class="participation-notice">
+              {% if guest or event.allow_open_rsvp %}
+                <p>🎉 RSVP first to {{ 'vote in this poll' if block.kind == 'poll' else 'add what you’re bringing' }}. Your response will be saved under your name.</p>
+                <a class="button small" href="#rsvp">RSVP first ↑</a>
+                {% if not guest %}<small>Already RSVPed? Open your personal invite link to participate.</small>{% endif %}
+              {% else %}
+                <p>🎉 Open your personal invite link and RSVP to {{ 'vote in this poll' if block.kind == 'poll' else 'add what you’re bringing' }}. Ask the host for your link if you need it.</p>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if block.kind == 'poll' %}
+            {% if guest and guest.status != 'pending' %}
+              <form method="post" action="{{ url_for('public.answer_block', token=guest.token, block_id=block.id) }}" class="choice-list">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                {% for option in view.data.get('items', []) %}
+                  <label>
+                    <input type="radio" name="choice" value="{{ option }}" {% if view.mine and view.mine.get('choice') == option %}checked{% endif %} required>
+                    <span>{{ option }} <small>{{ view.counts.get(option, 0) }} vote{{ '' if view.counts.get(option, 0) == 1 else 's' }}</small></span>
+                  </label>
+                {% endfor %}
+                <button type="submit">Save my vote</button>
+              </form>
+            {% else %}
+              <div class="choice-list read-only">
+                {% for option in view.data.get('items', []) %}<div><span>{{ option }}</span><small>{{ view.counts.get(option, 0) }} votes</small></div>{% endfor %}
+              </div>
+            {% endif %}
+          {% elif block.kind == 'potluck' %}
+            {% if guest and guest.status != 'pending' %}
+              <form method="post" action="{{ url_for('public.answer_block', token=guest.token, block_id=block.id) }}" class="potluck-entry">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <label>What are you bringing?
+                  <input name="choice" value="{{ view.mine.get('choice', '') if view.mine else '' }}" maxlength="160" placeholder="Green bean casserole, drinks, plates…" required>
+                </label>
+                <div class="button-row">
+                  <button type="submit">{{ "Update mine" if view.mine else "Add what I’m bringing" }}</button>
+                  {% if view.mine %}<button type="submit" name="clear" value="1" class="ghost" formnovalidate>Remove mine</button>{% endif %}
+                </div>
+              </form>
+            {% endif %}
+            <div class="potluck-claims">
+              {% for claim in view.claims %}
+                <div>
+                  <strong>{{ claim.item }}</strong>
+                  <span>{{ claim.guest_name }}{% if guest and claim.guest_id == guest.id %} · you{% endif %}</span>
+                </div>
+              {% else %}
+                <p class="empty-claims">Nothing claimed yet—be the first to bring something.</p>
+              {% endfor %}
+            </div>
+          {% elif block.kind == 'photos' %}
+            <a class="button" href="{{ block.data.get('url', '') }}" target="_blank" rel="noopener noreferrer">📸 View &amp; share party photos</a>
+          {% elif block.kind == 'schedule' %}
+            <div class="timeline">
+              {% for item in view.data.get('items', []) %}
+                <div><time>{{ item.time }}</time><strong>{{ item.label }}</strong></div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </section>
+      {% endfor %}
+
+      {% if event.description %}
+        <section class="event-card details-card" id="event-details">
+          <div class="event-kicker">The details</div>
+          <h2>About the event</h2>
+          {{ render_description(event.description) }}
+        </section>
+      {% endif %}
+      {% if guest %}
+          <section class="event-card notification-card" id="event-updates" data-push-panel data-push-url="{{ url_for('public.subscribe_push', token=guest.token) }}" data-vapid-key="{{ vapid_public_key }}">
+            <div class="event-kicker">Browser notifications</div>
+            <h2>Get updates — no email needed</h2>
+            <p>Push alerts work without an email address. You can change these anytime from this private link.</p>
+            <details class="notification-options"><summary>Choose which updates you receive</summary>
+            <div class="notification-categories">
+              {% for value, label in [('event','Event changes'),('reminders','Reminders'),('rsvp','New RSVPs'),('potluck','Potluck additions'),('polls','Poll activity'),('announcements','Host announcements')] %}
+                <label class="check"><input type="checkbox" value="{{ value }}" checked>{{ label }}</label>
+              {% endfor %}
+            </div>
+            </details>
+            <div class="button-row"><button type="button" data-enable-push>Enable browser notifications</button><button type="button" class="ghost" data-disable-push hidden>Turn off on this device</button></div>
+            <p class="hint" data-push-message role="status" aria-live="polite">On iPhone or iPad, first add this invitation to your Home Screen, then open it there and tap Enable.</p>
+          </section>
+      {% endif %}
+
+      {% if attendees %}
+        <section class="event-card attendee-card">
+          <div class="event-kicker">Who’s in</div>
+          <h2>{{ attendees|length }} guest{{ '' if attendees|length == 1 else 's' }} going</h2>
+          <div class="avatar-list">
+            {% for attendee in attendees %}<span title="{{ attendee.name }}">{{ attendee.name[:1]|upper }}</span>{% endfor %}
+          </div>
+          <p>{{ attendees|map(attribute='name')|join(', ') }}</p>
+        </section>
+      {% endif %}
+
+      {% if activities %}
+        <section class="event-card activity-card">
+          <div class="event-kicker">What’s happening</div>
+          <h2>Event activity</h2>
+          <div class="activity-list">
+            {% for item in activities %}
+              <div><span>{{ {'rsvp':'💌','potluck':'🥘','poll':'🗳️','announcement':'📣'}.get(item.kind, '✨') }}</span><p>{{ item.message }}<small>{{ item.created_at.strftime('%b %d · %I:%M %p') }}</small></p></div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </main>
+    {{ event.theme_html_bottom|safe }}
+  </div>
+  <footer class="event-footer">Cody literally made this app. He’s so smart. 🧠✨<br><small>(with a little help from ChatGPT 😉)</small></footer>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Events · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">Your parties</div>
+    <h1>Events</h1>
+  </div>
+  <a class="button" href="{{ url_for('admin.new_event') }}">Create event</a>
+</div>
+{% if events %}
+  <div class="event-grid">
+    {% for event in events %}
+      <article class="card event-tile">
+        {% if event.banner_filename %}
+          <img src="{{ url_for('uploaded_file', filename=event.banner_filename) }}" alt="">
+        {% endif %}
+        <div class="event-tile-body">
+          <div class="eyebrow">{{ event.start_at.strftime('%b %d, %Y · %I:%M %p') }}</div>
+          <h2>{{ event.title }}</h2>
+          <p class="muted">{{ event.location or "Location not set" }}</p>
+          <div class="button-row">
+            <a class="button" href="{{ url_for('admin.manage_event', event_id=event.id) }}">Manage</a>
+            <a class="button ghost" href="{{ url_for('public.open_event', token=event.public_token) }}" target="_blank">View invite</a>
+          </div>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <section class="empty card">
+    <div class="empty-icon">✦</div>
+    <h2>Your first invite starts here</h2>
+    <p class="muted">Create the event, add your people, then decorate it with AI.</p>
+    <a class="button" href="{{ url_for('admin.new_event') }}">Create an event</a>
+  </section>
+{% endif %}
+{% endblock %}
+

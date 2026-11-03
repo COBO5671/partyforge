@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Decorate {{ event.title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">AI theme studio</div>
+    <h1>Decorate {{ event.title }}</h1>
+    <p class="muted">Describe the vibe, copy the prompt to any AI, then paste its JSON response.</p>
+  </div>
+  <a class="button ghost" href="{{ url_for('admin.manage_event', event_id=event.id) }}">Back to manage</a>
+</div>
+
+<div class="studio-grid">
+  <section class="card section-card stack">
+    <div class="step"><span>1</span><div><strong>Describe the decoration</strong><small>Be as weird, elegant, or specific as you want.</small></div></div>
+    <textarea id="decor-request" rows="5" placeholder="An adult cartoon-undersea 30th birthday mixed with cozy Friendsgiving. Warm autumn orange, ocean blue, goofy bubbles, tasteful and funny..."></textarea>
+    <button type="button" id="make-prompt">Build AI prompt</button>
+
+    <div class="step"><span>2</span><div><strong>Copy this into any AI model</strong><small>ChatGPT, Open WebUI, LM Studio, Claude, or another model.</small></div></div>
+    <textarea id="ai-prompt" rows="12" readonly></textarea>
+    <button type="button" class="ghost copy-button" data-copy-target="ai-prompt">Copy prompt</button>
+
+    <div class="step"><span>3</span><div><strong>Paste the complete AI response</strong><small>PartyForge accepts the new labeled sections, Markdown code blocks, or the older JSON format.</small></div></div>
+    <textarea id="ai-response" rows="10" placeholder="=== CSS ===&#10;```css&#10;...&#10;```&#10;=== HTML TOP ===&#10;...&#10;=== HTML BOTTOM ===&#10;..."></textarea>
+    <button type="button" id="import-theme">Apply &amp; save AI theme</button>
+    <div id="import-message" class="hint" aria-live="polite"></div>
+  </section>
+
+  <section class="card preview-card">
+    <div class="preview-toolbar">
+      <strong>Live preview</strong>
+      <button type="button" class="ghost small" id="refresh-preview">Refresh</button>
+    </div>
+    <iframe id="theme-preview" title="Theme preview" sandbox=""></iframe>
+  </section>
+</div>
+
+<form method="post" class="card section-card stack" id="theme-form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="section-heading">
+    <div><div class="eyebrow">Advanced editor</div><h2>Theme code</h2></div>
+    <button type="submit">Save theme</button>
+  </div>
+  <label>Decorative HTML above the event
+    <textarea id="theme-html-top" name="theme_html_top" rows="6">{{ event.theme_html_top or '' }}</textarea>
+  </label>
+  <label>Custom CSS
+    <textarea id="theme-css" name="theme_css" rows="14">{{ event.theme_css or '' }}</textarea>
+  </label>
+  <label>Decorative HTML below the event
+    <textarea id="theme-html-bottom" name="theme_html_bottom" rows="6">{{ event.theme_html_bottom or '' }}</textarea>
+  </label>
+  <p class="hint">Scripts, forms, iframes, inline handlers, CSS URLs, and imports are removed or rejected when saved.</p>
+</form>
+
+<script>
+window.partyForgeEvent = {{ {
+  "title": event.title,
+  "subtitle": event.subtitle,
+  "date": event.start_at.strftime("%A, %B %d at %I:%M %p"),
+  "location": event.location
+}|tojson }};
+</script>
+{% endblock %}

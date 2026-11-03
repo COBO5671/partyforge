@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Manage {{ event.title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">{{ event.start_at.strftime('%B %d, %Y') }}</div>
+    <h1>{{ event.title }}</h1>
+    <p class="muted">{{ event.subtitle }}</p>
+  </div>
+  <div class="button-row">
+    <a class="button ghost" href="{{ url_for('admin.edit_event', event_id=event.id) }}">Edit details</a>
+    <a class="button accent" href="{{ url_for('admin.decorate_event', event_id=event.id) }}">Decorate with AI</a>
+    <a class="button" href="{{ url_for('public.open_event', token=event.public_token) }}" target="_blank">View invite</a>
+    {% if host_role == 'owner' %}<a class="button ghost" href="{{ url_for('admin.manage_hosts', event_id=event.id) }}">Hosts</a>{% endif %}
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><strong>{{ counts.yes }}</strong><span>Going</span></div>
+  <div class="stat"><strong>{{ counts.maybe }}</strong><span>Maybe</span></div>
+  <div class="stat"><strong>{{ counts.no }}</strong><span>Can’t go</span></div>
+  <div class="stat"><strong>{{ counts.pending }}</strong><span>Waiting</span></div>
+</div>
+
+<div class="two-column">
+  <section class="card section-card">
+    <div class="section-heading">
+      <div><div class="eyebrow">Invite people</div><h2>Guest list</h2></div>
+      <a href="{{ url_for('admin.export_guests', event_id=event.id) }}">Export CSV</a>
+    </div>
+    <form method="post" action="{{ url_for('admin.add_guests', event_id=event.id) }}" class="stack">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label>One guest per line
+        <textarea name="guest_lines" rows="5" placeholder="Austin, austin@example.com, 2&#10;Hannah&#10;Mary Ann, , 1"></textarea>
+      </label>
+      <p class="hint">Format: name, optional email, optional party limit.</p>
+      <button type="submit">Add guests</button>
+    </form>
+    <div class="guest-list">
+      {% for guest in event.guests %}
+        <div class="guest-row">
+          <div>
+            <strong>{{ guest.name }}</strong>
+            <span class="status {{ guest.status }}">{{ guest.status }}</span>
+            <small>{{ guest.party_size }} of {{ guest.party_limit }}</small>
+          </div>
+          <div class="guest-actions">
+            <button type="button" class="copy-button" data-copy="{{ url_for('public.invite', token=guest.token, _external=True) }}">Copy invite</button>
+            <form method="post" action="{{ url_for('admin.delete_guest', event_id=event.id, guest_id=guest.id) }}" onsubmit="return confirm('Remove this guest?')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button class="danger-link" type="submit">Remove</button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <p class="muted">No named guests yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card section-card">
+    <div class="eyebrow">Interactive sections</div>
+    <h2>Party extras</h2>
+    <form method="post" action="{{ url_for('admin.add_block', event_id=event.id) }}" class="stack">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label>Type
+        <select name="kind" id="block-kind">
+          <option value="poll">Poll / superlative</option>
+          <option value="potluck">Potluck sign-up</option>
+          <option value="schedule">Schedule</option>
+          <option value="info">Information card</option>
+          <option value="photos">Immich photo album</option>
+        </select>
+      </label>
+      <label>Title
+        <input name="block_title" required placeholder="Who’s getting the drunkest tonight?">
+      </label>
+      <label>Description
+        <input name="block_description" placeholder="Optional context">
+      </label>
+      <label id="block-items-label">Choices or items, one per line
+        <textarea name="block_items" rows="5" placeholder="Cody&#10;Josh&#10;Austin"></textarea>
+      </label>
+      <p class="hint">For an Immich photo album, paste its shared-album URL in the box above. Enable uploads on that share in Immich if guests should contribute photos.</p>
+      <p class="hint">Poll choices go one per line. Potluck guests type their own contribution, so it needs no items. For a schedule, use <strong>5:00 PM | Guests arrive</strong>.</p>
+      <button type="submit">Add party extra</button>
+    </form>
+    <div class="block-list">
+      {% for block in event.blocks %}
+        <article>
+          <div><span class="status">{{ block.kind }}</span><strong>{{ block.title }}</strong></div>
+          <form method="post" action="{{ url_for('admin.delete_block', event_id=event.id, block_id=block.id) }}" onsubmit="return confirm('Remove this section?')">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="danger-link" type="submit">Remove</button>
+          </form>
+        </article>
+      {% else %}
+        <p class="muted">Add a poll, potluck list, schedule, or information card.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<section class="card section-card announcement-card">
+  <div>
+    <div class="eyebrow">Guest updates</div>
+    <h2>Send an announcement or reminder</h2>
+    <p class="muted">This appears in every guest’s activity feed{% if email_configured %} and is emailed to guests who subscribed{% else %}. Email is currently off until SMTP is added to your .env file{% endif %}.</p>
+  </div>
+  <form method="post" action="{{ url_for('admin.announce', event_id=event.id) }}" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <textarea name="message" rows="3" maxlength="500" required placeholder="Reminder: bring a lawn chair—and the party starts at 5! 🥳"></textarea>
+    <button type="submit">Post update{% if email_configured %} + send email{% endif %}</button>
+  </form>
+</section>
+
+<section class="card section-card reminder-card">
+  <div>
+    <div class="eyebrow">Scheduled push + email</div>
+    <h2>Reminders</h2>
+    <p class="muted">Subscribers receive these automatically at the selected time. Browser push does not require an email.</p>
+  </div>
+  <form method="post" action="{{ url_for('admin.add_reminder', event_id=event.id) }}" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Send at<input type="datetime-local" name="send_at" required></label>
+    <label>Message<textarea name="message" rows="3" maxlength="500" required placeholder="RSVPs are due tomorrow—please let us know if you can make it!"></textarea></label>
+    <button type="submit">Schedule reminder</button>
+  </form>
+  {% if reminders %}
+    <div class="reminder-list">
+      {% for reminder in reminders %}
+        <div><div><strong>{{ reminder.send_at.strftime('%b %d · %I:%M %p') }}</strong><p>{{ reminder.message }}</p></div><span class="status {{ 'yes' if reminder.sent_at else '' }}">{{ 'sent' if reminder.sent_at else 'scheduled' }}</span>{% if not reminder.sent_at %}<form method="post" action="{{ url_for('admin.delete_reminder', event_id=event.id, reminder_id=reminder.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="danger-link">Remove</button></form>{% endif %}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+{% if host_role == 'owner' %}
+<details class="card section-card danger-zone">
+  <summary>Delete this event</summary>
+  <p>This permanently deletes the invitation, guest links, responses, themes, and notification history.</p>
+  <form method="post" action="{{ url_for('admin.delete_event', event_id=event.id) }}" class="stack" onsubmit="return confirm('Permanently delete this event?')">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Type <strong>{{ event.title }}</strong> to confirm<input name="confirm_title" required autocomplete="off"></label>
+    <button type="submit" class="danger-button">Delete event permanently</button>
+  </form>
+</details>
+{% endif %}
+
+<section class="card section-card share-card">
+  <div>
+    <div class="eyebrow">Public event link</div>
+    <h2>{{ "Open RSVP is enabled" if event.allow_open_rsvp else "View-only unless guests have a named link" }}</h2>
+  </div>
+  <div class="copy-field">
+    <input readonly value="{{ url_for('public.open_event', token=event.public_token, _external=True) }}">
+    <button type="button" class="copy-button" data-copy="{{ url_for('public.open_event', token=event.public_token, _external=True) }}">Copy</button>
+  </div>
+</section>
+{% endblock %}

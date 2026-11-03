@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ "New event" if is_new else "Edit " ~ event.title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">{{ "New invitation" if is_new else "Event settings" }}</div>
+    <h1>{{ "Create an event" if is_new else "Edit event" }}</h1>
+  </div>
+  {% if not is_new %}
+    <a class="button ghost" href="{{ url_for('admin.manage_event', event_id=event.id) }}">Back to manage</a>
+  {% endif %}
+</div>
+<form method="post" enctype="multipart/form-data" class="card form-card">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="form-grid">
+    <label class="wide">Title *
+      <input name="title" value="{{ event.title or '' }}" required maxlength="160" placeholder="Josh’s 30th + Friendsgiving">
+    </label>
+    <label class="wide">Short subtitle
+      <input name="subtitle" value="{{ event.subtitle or '' }}" maxlength="240" placeholder="Thirty, flirty, and bringing a side dish">
+    </label>
+    <label>Start time *
+      <input type="datetime-local" name="start_at" value="{{ event.start_at.strftime('%Y-%m-%dT%H:%M') if event.start_at else '' }}" required>
+    </label>
+    <label>End time
+      <input type="datetime-local" name="end_at" value="{{ event.end_at.strftime('%Y-%m-%dT%H:%M') if event.end_at else '' }}">
+    </label>
+    <label>RSVP by
+      <input type="datetime-local" name="rsvp_deadline" value="{{ event.settings.rsvp_deadline.strftime('%Y-%m-%dT%H:%M') if event.settings and event.settings.rsvp_deadline else '' }}">
+      <small>New and unanswered guests cannot RSVP after this time; existing responses can still be updated.</small>
+    </label>
+    <label class="wide">Location
+      <input name="location" value="{{ event.location or '' }}" maxlength="300" placeholder="Address or place name">
+    </label>
+    <label>Timezone
+      <input name="timezone" value="{{ event.timezone or 'America/Chicago' }}" maxlength="64">
+    </label>
+    <label>Banner image
+      <input type="file" name="banner" accept=".jpg,.jpeg,.png,.webp,.gif">
+    </label>
+    <label class="wide">Details
+      <textarea name="description" rows="7" placeholder="What should everyone know?">{{ event.description or '' }}</textarea>
+      <small>Paste full TikTok video links to show playable previews. Regular web links become clickable.</small>
+    </label>
+    <fieldset class="wide highlight-editor">
+      <legend>Three things guests should know</legend>
+      <p class="hint">Optional. These appear near the top, before RSVP. Use short, specific details: what to bring, dress code, parking, or accessibility.</p>
+      <input type="hidden" name="highlights_present" value="1">
+      {% for index in range(3) %}
+        {% set highlight = event.highlights[index] if event.highlights|length > index else none %}
+        <div class="form-grid">
+          <label>Highlight {{ index + 1 }} title<input name="highlight_title_{{ index }}" maxlength="60" value="{{ highlight.title if highlight else '' }}" placeholder="e.g. What to bring"></label>
+          <label>Short detail<input name="highlight_body_{{ index }}" maxlength="240" value="{{ highlight.body if highlight else '' }}" placeholder="One useful sentence"></label>
+        </div>
+      {% endfor %}
+    </fieldset>
+  </div>
+  <div class="check-row">
+    <label class="check"><input type="checkbox" name="allow_open_rsvp" {% if event.allow_open_rsvp %}checked{% endif %}> Allow anyone with the public link to RSVP</label>
+    <label class="check"><input type="checkbox" name="show_guest_list" {% if event.show_guest_list %}checked{% endif %}> Show attending guests</label>
+  </div>
+  <div class="button-row">
+    <button type="submit">{{ "Create event" if is_new else "Save changes" }}</button>
+  </div>
+</form>
+{% endblock %}

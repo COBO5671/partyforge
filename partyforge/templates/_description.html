@@ -1,0 +1,15 @@
+{% macro render_description(value) %}
+  {% set content = value|description_content %}
+  <div class="event-description">{{ content.html|safe }}</div>
+  {% if content.videos %}
+    <div class="video-previews" aria-label="Video previews">
+      {% for video in content.videos %}
+        <figure class="video-preview" id="video-{{ video.id }}" data-video-preview>
+          <p class="video-status" data-video-status role="status">Loading TikTok preview…</p>
+          <iframe src="https://www.tiktok.com/player/v1/{{ video.id }}?autoplay=0&amp;description=1&amp;rel=0" title="TikTok video {{ video.number }}" loading="lazy" referrerpolicy="no-referrer" allow="fullscreen" allowfullscreen></iframe>
+          <figcaption><a href="{{ video.url }}" target="_blank" rel="noopener noreferrer">Open video {{ video.number }} on TikTok ↗</a><small>If the preview is unavailable, use this link.</small></figcaption>
+        </figure>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endmacro %}
