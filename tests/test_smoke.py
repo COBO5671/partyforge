@@ -464,5 +464,70 @@ class PartyForgeSmokeTest(unittest.TestCase):
             self.assertEqual(EventActivity.query.one().message, "RSVPs are due today.")
 
 
+    def test_shared_and_pending_invites_show_updates_but_hide_declines(self):
+        from datetime import timedelta
+        from partyforge import db
+        from partyforge.models import Event, EventActivity, Guest
+
+        with self.app.app_context():
+            event = Event(title="Shared activity", start_at=datetime.now(), allow_open_rsvp=True)
+            viewer = Guest(event=event, name="Viewer", status="pending")
+            going = Guest(event=event, name="Going guest", status="yes")
+            maybe = Guest(event=event, name="Maybe guest", status="maybe")
+            declined = Guest(event=event, name="Declined guest", status="no")
+            db.session.add(event)
+            for actor, kind, message in [(going, "rsvp", "Going guest is going."), (maybe, "rsvp", "Maybe guest is maybe."), (going, "potluck", "Going guest is bringing pie.")]:
+                db.session.add(EventActivity(event=event, actor=actor, kind=kind, message=message, created_at=datetime.now() - timedelta(days=1)))
+            # Old declines must stay hidden even if the actor later says yes.
+            # Filter before applying the 20-item limit.
+            for n in range(25):
+                db.session.add(EventActivity(event=event, actor=going, kind="rsvp", message="Legacy guest is can" + ("'" if n % 2 else "\u2019") + "t go."))
+            db.session.add(EventActivity(event=event, actor=declined, kind="rsvp", message="Declined guest is going."))
+            db.session.commit()
+            urls = [f"/e/{event.public_token}", f"/i/{viewer.token}", f"/i/{going.token}"]
+            event_id = event.id
+
+        for url in urls:
+            page = self.client.get(url)
+            self.assertEqual(page.status_code, 200)
+            for message in (b"Going guest is going.", b"Maybe guest is maybe.", b"Going guest is bringing pie."):
+                self.assertIn(message, page.data)
+            self.assertNotIn(b"Legacy guest", page.data)
+            self.assertNotIn(b"Declined guest", page.data)
+
+        with self.app.app_context():
+            db.session.get(Event, event_id).show_guest_list = False
+            db.session.commit()
+        for url in urls:
+            page = self.client.get(url)
+            self.assertNotIn(b"Going guest is going.", page.data)
+            self.assertNotIn(b"Maybe guest is maybe.", page.data)
+            self.assertIn(b"Going guest is bringing pie.", page.data)
+
+    def test_decline_notifies_only_host_while_yes_maybe_are_public(self):
+        from partyforge import db
+        from partyforge.models import Event, EventActivity, Guest, Notification
+        with self.app.app_context():
+            event = Event(title="Privacy", start_at=datetime.now(), allow_open_rsvp=True)
+            guest = Guest(event=event, name="Responder", status="pending")
+            db.session.add(event)
+            db.session.commit()
+            token, shared_token = guest.token, event.public_token
+        for status in ("no", "yes", "maybe"):
+            page = self.client.get(f"/i/{token}")
+            with patch("partyforge.public.send_host_email") as host_email, patch("partyforge.public.send_subscriber_email") as guest_email, patch("partyforge.public.send_host_push"), patch("partyforge.public.send_guest_push") as guest_push:
+                result = self.client.post(f"/i/{token}", data={"_csrf": self.csrf(page), "status": status}, follow_redirects=True)
+                self.assertEqual(result.status_code, 200)
+                host_email.assert_called_once()
+                self.assertEqual(guest_email.call_count, 0 if status == "no" else 1)
+                self.assertEqual(guest_push.call_count, 0 if status == "no" else 1)
+            if status != "no":
+                shared = self.client.get(f"/e/{shared_token}")
+                self.assertIn(f"Responder is {'going' if status == 'yes' else 'maybe'}.".encode(), shared.data)
+        with self.app.app_context():
+            self.assertEqual(Notification.query.count(), 3)
+            self.assertEqual(EventActivity.query.count(), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

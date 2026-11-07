@@ -66,16 +66,14 @@ def render_event(event, guest=None, open_link=False):
     deadline = event.settings.rsvp_deadline if event.settings else None
     deadline_passed = bool(deadline and deadline < event_now(event))
     # Filter before limiting so older declines cannot crowd out visible updates.
-    activities = []
-    if guest and guest.status != "pending":
-        activities = [
-            item for item in event.activities
-            if item.kind != "rsvp" or (
-                event.show_guest_list
-                and not (item.actor and item.actor.status == "no")
-                and not item.message.endswith(" is can’t go.")
-            )
-        ][:20]
+    activities = [
+        item for item in event.activities
+        if item.kind != "rsvp" or (
+            event.show_guest_list
+            and not (item.actor and item.actor.status == "no")
+            and not item.message.replace("\u2019", "'").lower().endswith(" is can't go.")
+        )
+    ][:20]
     return render_template(
         "public_event.html",
         event=event,
